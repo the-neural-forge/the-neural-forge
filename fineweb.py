@@ -85,3 +85,11 @@ with mp.Pool(nprocs) as pool:
         split = "val" if shard_index == 0 else "train"
         filename = os.path.join(DATA_CACHE_DIR, f"edufineweb_{split}_{shard_index:06d}")
         write_datafile(filename, all_tokens_np[:token_count])
+
+print(f"Saved {shard_index} shards to {DATA_CACHE_DIR}")
+# Move shard 0 (validation shard) outside of local_dir
+val_shard = os.path.join(DATA_CACHE_DIR, "edufineweb_val_000000.safetensors")
+if os.path.exists(val_shard):
+    new_location = os.path.join(DATA_CACHE_DIR, "edufineweb_val.safetensors") 
+    os.rename(val_shard, new_location)
+    print(f"Moved validation shard to {new_location}")

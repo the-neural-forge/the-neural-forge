@@ -45,7 +45,7 @@ set_seed(42)
 # 2. Training configuration
 total_batch_size = 524288
 batch_size = 4
-sequence_length = 32
+sequence_length = 1024
 assert total_batch_size % (batch_size * sequence_length) == 0, 'Total batch size must be divisible by batch size * sequence length'
 grad_accumulation_steps = total_batch_size // (batch_size * sequence_length * ddp_world_size)
 max_lr = 6e-4
@@ -73,7 +73,7 @@ optimizer = raw_model.configure_optimizers(0.1, max_lr, device)
 
 #todo
 data_loader = TextDataLoader(batch_size, sequence_length, "edu_fineweb10B", process_rank=ddp_rank, num_processes=ddp_world_size)
-val_loader = TextDataLoader(batch_size, sequence_length, single_file='', process_rank=ddp_rank, num_processes=ddp_world_size)
+val_loader = TextDataLoader(batch_size, sequence_length, single_file='edufineweb_val.safetensors', process_rank=ddp_rank, num_processes=ddp_world_size)
 
 # 5. Logging setup
 log_file = None
