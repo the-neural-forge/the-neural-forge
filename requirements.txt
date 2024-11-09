@@ -1,0 +1,9 @@
+torch
+safetensors
+numpy
+tiktoken
+tqdm
+datasets
+transformers
+wandb
+python-dotenv
