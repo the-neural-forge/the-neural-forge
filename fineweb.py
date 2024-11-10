@@ -90,6 +90,6 @@ print(f"Saved {shard_index} shards to {DATA_CACHE_DIR}")
 # Move shard 0 (validation shard) outside of local_dir
 val_shard = os.path.join(DATA_CACHE_DIR, "edufineweb_val_000000.safetensors")
 if os.path.exists(val_shard):
-    new_location = os.path.join(DATA_CACHE_DIR, "edufineweb_val.safetensors") 
+    new_location = os.path.join(os.path.dirname(__file__), "edufineweb_val.safetensors") 
     os.rename(val_shard, new_location)
     print(f"Moved validation shard to {new_location}")
