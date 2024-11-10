@@ -60,10 +60,12 @@ def configure_optimizers(model, weight_decay, learning_rate, device_type):
 
 def get_lr(warmup_steps, total_steps, max_lr, min_lr, actual_step):
     if actual_step < warmup_steps:
-        return max_lr / warmup_steps * (actual_step + 1)
+        # Linear warmup from min_lr to max_lr
+        return min_lr + (max_lr - min_lr) * (actual_step / warmup_steps)
     elif actual_step >= total_steps:
         return min_lr
     else:
+        # Cosine decay from max_lr to min_lr
         decay_ratio = (actual_step - warmup_steps) / (total_steps - warmup_steps)
         return min_lr + 0.5 * (max_lr-min_lr) * (1 + math.cos(decay_ratio * math.pi))
 

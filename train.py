@@ -44,7 +44,7 @@ set_seed(42)
 
 # 2. Training configuration
 total_batch_size = 524288
-batch_size = 4
+batch_size = 16
 sequence_length = 1024
 assert total_batch_size % (batch_size * sequence_length) == 0, 'Total batch size must be divisible by batch size * sequence length'
 grad_accumulation_steps = total_batch_size // (batch_size * sequence_length * ddp_world_size)
@@ -83,7 +83,10 @@ if master_process:
     wandb.login()
     os.makedirs('logs', exist_ok=True)
     timestamp = time.strftime('%Y%m%d_%H%M%S')
-    log_file = open(f'logs/training_log_{timestamp}.txt', 'w')
+
+    log_file = f'logs/training_log_{timestamp}.txt'
+    with open(log_file, 'w') as f:
+        f.write('step,train_loss,val_loss,learning_rate,grad_norm,time\n')
     # Initialize wandb
     wandb.init(
         project="gpt2-training",
@@ -148,7 +151,7 @@ for step in range(total_steps):
             }, step=step)
 
         # Add HellaSwag evaluation
-        if master_process and (step % 1000 == 0 or last_step):
+        if master_process and (step % 1000 == 0 or last_step) and step != 0:
             hellaswag_acc = evaluate_hellaswag(raw_model, device)
             print(f"hellaswag accuracy: {hellaswag_acc:.4f}")
             with open(log_file, "a") as f:

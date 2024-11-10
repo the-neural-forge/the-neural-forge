@@ -137,6 +137,13 @@ class TextDataLoader:
         self.batch_idx += 1
         return inputs.pin_memory(), targets.pin_memory()
     
+    def reset(self):
+        if self.single_file_mode:
+            self.batch_idx = 0
+        else:
+            self.batch_idx = 0
+            self._load_shard()
+
     def __len__(self):
         if self.single_file_mode:
             return self.batches_total // self.num_processes
