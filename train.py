@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 
 # 1. Device and DDP setup
-ddp = int(os.environ.get('DDP', -1)) != -1
+ddp = int(os.environ.get('RANK', -1)) != -1
 if ddp:
     init_process_group(backend='nccl')
     ddp_rank = int(os.environ.get('RANK'))
