@@ -14,6 +14,7 @@ import safetensors.torch as safetorch
 from hellaswag import evaluate as evaluate_hellaswag
 import wandb
 from dotenv import load_dotenv
+from knockknock import discord_sender
 
 
 # 1. Device and DDP setup
@@ -69,7 +70,7 @@ else:
     raw_model = model
 
 tokenizer = tiktoken.get_encoding('gpt2')
-optimizer = raw_model.configure_optimizers(0.1, max_lr, device)
+optimizer = raw_model.configure_optimizers(0.1, max_lr, device, master_process)
 
 #todo
 data_loader = TextDataLoader(batch_size, sequence_length, "edu_fineweb10B", process_rank=ddp_rank, num_processes=ddp_world_size)
@@ -167,7 +168,9 @@ for step in range(total_steps):
     dt = (end - start) * 1000 # in ms
     tok_sec = (batch_size * sequence_length * grad_accumulation_steps * ddp_world_size) / (end - start)
     if master_process:
-        print(f'Step {step} | loss: {loss_accum.item():.6f}| lr: {lr:.4f} | norm: {norm:.4f} | time: {dt:.2f}ms | tokens/sec: {tok_sec:.2f}')
+        print(f'Step {step} | loss: {loss_accum.item():.6f}| lr: {lr:.5f} | norm: {norm:.4f} | time: {dt:.2f}ms | tokens/sec: {tok_sec:.2f}')
+        with open(log_file, "a") as f:
+            f.write(f"{step} train {loss_accum.item():.4f} {lr:.5f} {norm:.4f} {dt:.2f} {tok_sec:.2f}\n")
         # Add wandb logging
         wandb.log({
             "train/loss": loss_accum.item(),
@@ -182,3 +185,9 @@ if master_process:
 
 if ddp:
     destroy_process_group()
+    
+@discord_sender(webhook_url=os.environ.get('DISCORD_WEBHOOK_URL'))
+def send_discord_notification(message):
+    return message
+
+send_discord_notification(f'Training finished')

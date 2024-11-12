@@ -198,7 +198,7 @@ class GPT2(nn.Module):
             loss = F.cross_entropy(logits_BSV.view(-1, logits_BSV.size(-1)), targets_BS.view(-1))
         return logits_BSV, loss
 
-    def configure_optimizers(self, weight_decay, learning_rate, device_type):
+    def configure_optimizers(self, weight_decay, learning_rate, device_type, master_process):
         # start with all of the candidate parameters (that require grad)
         param_dict = {pn: p for pn, p in self.named_parameters()}
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
@@ -212,15 +212,13 @@ class GPT2(nn.Module):
         ]
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        if True:
-        # if master_process:
+        if master_process:
             print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
             print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
         # Create AdamW optimizer and use the fused version if it is available
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
-        use_fused = fused_available and device_type == "cuda"
-        if True:
-        # if master_process:
+        use_fused = fused_available and "cuda" in device_type
+        if master_process:
             print(f"using fused AdamW: {use_fused}")
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)
         return optimizer

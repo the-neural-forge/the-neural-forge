@@ -5,6 +5,9 @@ set -e
 
 echo "Starting pipeline execution..."
 
+python -m venv .venv
+source .venv/bin/activate
+
 # 1. Install requirements
 echo "Installing requirements..."
 pip install -r requirements.txt
@@ -19,6 +22,6 @@ python fineweb.py
 
 # 4. Run training script with torchrun
 echo "Starting distributed training..."
-torchrun --nproc_per_node=auto train.py
+torchrun --standalone --nproc_per_node=auto train.py
 
 echo "Pipeline completed successfully!"

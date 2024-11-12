@@ -7,3 +7,4 @@ datasets
 transformers
 wandb
 python-dotenv
+knockknock
