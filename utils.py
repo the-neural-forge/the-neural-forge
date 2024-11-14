@@ -82,6 +82,51 @@ def set_seed(seed: int = 42):
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         torch.mps.manual_seed(seed)
 
+def find_max_batch_size(model: nn.Module, optimizer: torch.optim.Optimizer, seq_len: int, device: torch.device) -> int:
+    model.train()
+    model.to(device)
 
+    torch.cuda.empty_cache()
+    input_ids = torch.randint(0, 10000, (1, seq_len), device=device)
+    target_ids = torch.randint(0, 10000, (1, seq_len), device=device)
+    batch_size = 1
+    max_successful = 1
+    
+    # First try powers of 2
+    while True:
+        try:
+            batch_input = input_ids.expand(batch_size, -1)
+            _, loss = model(batch_input, target_ids)
+            loss.backward()
+            optimizer.zero_grad()
+            
+            max_successful = batch_size
+            batch_size *= 2
+            
+            torch.cuda.empty_cache()
+            
+        except torch.cuda.OutOfMemoryError:
+            break
+            
+    # Binary search between last successful and failed batch size
+    left = max_successful
+    right = batch_size
+    
+    while left < right - 1:
+        mid = (left + right) // 2
+        try:
+            batch_input = input_ids.expand(mid, -1) 
+            _, loss = model(batch_input, target_ids)
+            loss.backward()
+            optimizer.zero_grad()
+            
+            left = mid  # This size worked
+            torch.cuda.empty_cache()
+            
+        except torch.cuda.OutOfMemoryError:
+            right = mid  # This size failed
+            torch.cuda.empty_cache()
+
+    return left  # Return largest successful batch size
 
 
