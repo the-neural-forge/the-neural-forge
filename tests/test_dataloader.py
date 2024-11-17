@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from dataset import TextDataLoader
+from src.data.dataset import TextDataLoader
 
 def test_full_dataset_coverage():
     from tqdm import tqdm

@@ -6,14 +6,14 @@ import tiktoken
 from src.models.layers import GPT2
 from src.configs import GPTConfig
 from src.utils import set_seed, get_lr
-from dataset import TextDataLoader
+from src.data.dataset import TextDataLoader
 import torch.distributed as dist
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import wandb
 from dotenv import load_dotenv
 from knockknock import discord_sender
-from hellaswag import evaluate as evaluate_hellaswag
+from src.data.hellaswag import evaluate as evaluate_hellaswag
 from torch import Tensor
 import torch.nn as nn
 class TrainingConfig:
