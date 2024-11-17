@@ -2,11 +2,13 @@ import math
 import random
 from typing import List, Dict
 from copy import deepcopy
+import os
 
 import numpy as np
 import torch
 import torch.nn as nn
-import re
+from torch.distributed import init_process_group, destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def make_copies(module: nn.Module, num_copies: int) -> List[nn.Module]:
@@ -82,7 +84,10 @@ def set_seed(seed: int = 42):
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         torch.mps.manual_seed(seed)
 
-def find_max_batch_size(model: nn.Module, optimizer: torch.optim.Optimizer, seq_len: int, device: torch.device) -> int:
+def find_max_batch_size(model: nn.Module, optimizer: torch.optim.Optimizer, seq_len: int) -> int:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
     model.train()
     model.to(device)
 
@@ -128,5 +133,37 @@ def find_max_batch_size(model: nn.Module, optimizer: torch.optim.Optimizer, seq_
             torch.cuda.empty_cache()
 
     return left  # Return largest successful batch size
+
+def measure_throughput(model: nn.Module, optimizer: torch.optim.Optimizer, seq_len: int, use_compile: bool = False, use_cuda_graphs: bool = False) -> float:
+    ddp = int(os.environ.get('RANK', -1)) != -1
+    if ddp:
+        init_process_group(backend='nccl')
+        ddp_rank = int(os.environ.get('RANK'))
+        ddp_local_rank = int(os.environ.get('LOCAL_RANK'))
+        ddp_world_size = int(os.environ.get('WORLD_SIZE'))
+        device = f"cuda:{ddp_local_rank}"
+        torch.cuda.set_device(device)
+        master_process = ddp_rank == 0
+    else:
+        ddp_rank = 0
+        ddp_local_rank = 0
+        ddp_world_size = 1
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        master_process = True
+
+    device_type = "cuda" if device.startswith("cuda") else "cpu"
+    print(f"Using device: {device}")
+    torch.set_float32_matmul_precision('high')
+
+    model.train()
+    model.to(device)
+
+    if use_compile:
+        model = torch.compile(model, mode="max-autotune", dynamic=False, fullgraph=True)
+
+    if 
+
+    
+
 
 

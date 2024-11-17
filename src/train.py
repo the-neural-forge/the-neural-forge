@@ -3,9 +3,9 @@ import time
 import os
 import torch
 import tiktoken
-from layers import GPT2
-from configs import GPTConfig
-from utils import set_seed, get_lr
+from src.models.layers import GPT2
+from src.configs import GPTConfig
+from src.utils import set_seed, get_lr
 from dataset import TextDataLoader
 import torch.distributed as dist
 from torch.distributed import init_process_group, destroy_process_group

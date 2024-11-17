@@ -1,7 +1,7 @@
 import torch
 import tiktoken
-from layers import GPT2
-from configs import GPTConfig
+from src.models.layers import GPT2
+from src.configs import GPTConfig
 import torch.nn.functional as F
 
 # Create model

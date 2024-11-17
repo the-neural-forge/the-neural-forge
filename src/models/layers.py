@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from configs import GPTConfig
-from utils import make_copies, transform_keys
+from src.configs import GPTConfig
+from src.utils import make_copies, transform_keys
 
 
 """ 

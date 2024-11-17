@@ -1,7 +1,7 @@
 import torch
 
-from configs import GPTConfig
-from layers import PositionalEncoding, MLP, MultiHeadedAttention, Block, GPT2
+from src.configs import GPTConfig
+from src.models.layers import PositionalEncoding, MLP, MultiHeadedAttention, Block, GPT2
 
 
 def test_positional_encoding():

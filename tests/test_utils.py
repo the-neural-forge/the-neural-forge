@@ -1,6 +1,6 @@
-from configs import GPTConfig
-from layers import Block
-from utils import make_copies
+from src.configs import GPTConfig
+from src.models.layers import Block
+from src.utils import make_copies
 
 
 def test_make_copies():
