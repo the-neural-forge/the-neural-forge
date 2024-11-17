@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class GPTConfig:
+class GPT2Config:
     max_seq_len: int = 1024
     vocab_size: int = 50257
     d_model: int = 768

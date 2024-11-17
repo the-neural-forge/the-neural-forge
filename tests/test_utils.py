@@ -1,5 +1,5 @@
-from src.configs import GPTConfig
-from src.models.layers import Block
+from src.models.gpt2.config import GPT2Config
+from src.models.gpt2.model import Block
 from src.utils import make_copies
 
 
@@ -9,7 +9,7 @@ def test_make_copies():
     activation = 'gelu'
     hidden_dim = d_model * 4
     num_copies = 5
-    config = GPTConfig(d_model=d_model, num_heads=num_heads, hidden_dim=hidden_dim)
+    config = GPT2Config(d_model=d_model, num_heads=num_heads, hidden_dim=hidden_dim)
 
     block = Block(config)
 

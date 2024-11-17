@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.configs import GPTConfig
+from config import GPT2Config
 from src.utils import make_copies, transform_keys
 
 
@@ -118,7 +118,7 @@ class Block(nn.Module):
 
 
 class GPT2(nn.Module):
-    def __init__(self, config: GPTConfig, **kwargs):
+    def __init__(self, config: GPT2Config, **kwargs):
         super().__init__(**kwargs)
         self.config = config
         self.model = nn.ModuleDict(dict(
@@ -160,7 +160,7 @@ class GPT2(nn.Module):
         config['activation'] = 'gelu'
         config['hidden_dim'] = config['d_model'] * 4
 
-        config = GPTConfig(**config)
+        config = GPT2Config(**config)
 
         from transformers import GPT2LMHeadModel
         hf_state_dict = GPT2LMHeadModel.from_pretrained(model_name).state_dict()

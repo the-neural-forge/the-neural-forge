@@ -3,8 +3,8 @@ import time
 import os
 import torch
 import tiktoken
-from src.models.layers import GPT2
-from src.configs import GPTConfig
+from src.models.gpt2.model import GPT2
+from src.models.gpt2.config import GPT2Config
 from src.utils import set_seed, get_lr
 from src.data.dataset import TextDataLoader
 import torch.distributed as dist
@@ -289,6 +289,6 @@ class GPTTrainer:
 # Usage
 if __name__ == "__main__":
     config = TrainingConfig()
-    model = GPT2(GPTConfig(vocab_size=50304))
+    model = GPT2(GPT2Config(vocab_size=50304))
     trainer = GPTTrainer(config, model)
     trainer.train()

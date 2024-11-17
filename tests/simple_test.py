@@ -1,11 +1,11 @@
 import torch
 import tiktoken
-from src.models.layers import GPT2
-from src.configs import GPTConfig
+from src.models.gpt2.model import GPT2
+from src.models.gpt2.config import GPT2Config
 import torch.nn.functional as F
 
 # Create model
-model = GPT2(GPTConfig(vocab_size=50304))
+model = GPT2(GPT2Config(vocab_size=50304))
 model.eval()
 
 # Load and tokenize input.txt

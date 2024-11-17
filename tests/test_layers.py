@@ -1,7 +1,7 @@
 import torch
 
-from src.configs import GPTConfig
-from src.models.layers import PositionalEncoding, MLP, MultiHeadedAttention, Block, GPT2
+from src.models.gpt2.config import GPT2Config
+from src.models.gpt2.model import PositionalEncoding, MLP, MultiHeadedAttention, Block, GPT2
 
 
 def test_positional_encoding():
@@ -48,7 +48,7 @@ def test_block():
     batch_size = 16
     embedding_dim = 64
     num_heads = 8
-    config = GPTConfig(max_seq_len=sequence_length, d_model=embedding_dim, num_heads=num_heads)
+    config = GPT2Config(max_seq_len=sequence_length, d_model=embedding_dim, num_heads=num_heads)
 
     x = torch.randn((sequence_length, batch_size, embedding_dim))
     block = Block(config)
@@ -62,7 +62,7 @@ def test_gpt():
     batch_size = 16
     embedding_dim = 64
     num_heads = 8
-    config = GPTConfig(max_seq_len=sequence_length, d_model=embedding_dim, num_heads=num_heads)
+    config = GPT2Config(max_seq_len=sequence_length, d_model=embedding_dim, num_heads=num_heads)
     model = GPT2(config)
 
     x = torch.randint(0, 128, (batch_size, sequence_length))
