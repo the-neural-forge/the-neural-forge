@@ -31,6 +31,8 @@ class MobileLLM(nn.Module):
         self.final_norm = nn.LayerNorm(config.d_model, **kwargs)
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, **kwargs)
 
+        self.embedding.weight = self.lm_head.weight
+
     def forward(self, x_BSE: torch.Tensor) -> torch.Tensor:
         x_BSE = self.embedding(x_BSE)
         for _ in range(self.config.num_repeats):
