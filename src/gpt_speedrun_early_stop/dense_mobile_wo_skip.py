@@ -6,6 +6,7 @@ import uuid
 import glob
 import time
 from dataclasses import dataclass
+import contextlib
 
 import numpy as np
 import torch
@@ -224,153 +225,67 @@ class Block(nn.Module):
     
 
     
-class DWAModules(torch.nn.Module):
-    def __init__(self, n_blocks, dilation=1, period=1):
-        super().__init__()
-        self.n_blocks = n_blocks
-        self.dilation = dilation
-        self.period = period
-        self.alphas = torch.nn.ModuleList([
-            torch.nn.Linear((i+1+dilation)//dilation, 1, bias=False) 
-            if (i+1) % period == 0 
-            else None 
-            for i in range(n_blocks)
-        ])
-        self.accumulators = None
-        self._init_weights()
-
-    def _init_weights(self):
-        for module in self.alphas:
-            if module is not None:
-                module.weight.data.zero_()
-                module.weight.data[0, -1] = 1.
-
-    def init_accumulators(self, x):
-        x_accs = []
-        for i in range(self.dilation):
-            current_group_size = (self.n_blocks + 1) // self.dilation
-            if i < (self.n_blocks + 1) % self.dilation:
-                current_group_size += 1
-            x_accs.append((
-                torch.zeros((current_group_size, *x.shape), 
-                device=x.device, 
-                dtype=x.dtype), 
-                None
-            ))
-        x_accs[0] = apply_inplace_set(x_accs[0], 0, x)
-        self.accumulators = x_accs
-
-    def forward(self, x, block_idx):
-        assert self.accumulators is not None, "'init_accumulators(x)' needs to be called first"
-        
-        # Update accumulator
-        self.accumulators[(block_idx+1) % self.dilation] = apply_inplace_set(
-            self.accumulators[(block_idx+1) % self.dilation],
-            (block_idx+1)//self.dilation,
-            x
-        )
-        
-        # Apply weights if needed
-        if (block_idx+1) % self.period == 0:
-            x = torch.tensordot(
-                self.alphas[block_idx].weight.view(-1), 
-                self.accumulators[(block_idx+1) % self.dilation][0],
-                dims=([0], [0])
-            )
-        
-        return x
-    
-class Block(nn.Module):
-
-    def __init__(self, config):
-        super().__init__()
-        self.attn = CausalSelfAttention(config)
-        self.mlp = MLP(config)
-        self.lambdas = nn.Parameter(torch.tensor([1., 0.]))
-
-    def forward(self, x, v1, x0, block_mask):
-        x = self.lambdas[0] * x + self.lambdas[1] * x0
-        x1, v1 = self.attn(F.rms_norm(x, (x.size(-1),)), v1, block_mask)
-        x = x + x1
-        x = x + self.mlp(F.rms_norm(x, (x.size(-1),)))
-        return x, v1
-
 class InPlaceSetSlice(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, full_tensor, last_slice, x_idx, x_val):
-        full_tensor[x_idx] = x_val
-        ctx.x_idx = x_idx
-        ret = torch.Tensor().to(full_tensor.device)
-        ret.set_(full_tensor[:x_idx + 1])
-        return ret
 
-    @staticmethod
-    def backward(ctx, grad_out):
-        if ctx.x_idx == 0:
-            return None, None, None, grad_out[ctx.x_idx]
-        else:
-            return None, grad_out[:ctx.x_idx], None, grad_out[ctx.x_idx]
+  @staticmethod
+  def forward(ctx, full_tensor, last_slice, x_idx, x_val):
+    full_tensor[x_idx] = x_val
+    ctx.x_idx = x_idx
+    ret = torch.Tensor().to(full_tensor.device)
+    ret.set_(full_tensor[:x_idx + 1])
+    return ret
+
+  @staticmethod
+  def backward(ctx, grad_out):
+    if ctx.x_idx == 0:
+      return None, None, None, grad_out[ctx.x_idx]
+    else:
+      return None, grad_out[:ctx.x_idx], None, grad_out[ctx.x_idx]
+
 
 def apply_inplace_set(x_acc, x_idx, x_val):
-    full_tensor, last_slice = x_acc
-    new_slice = InPlaceSetSlice.apply(full_tensor, last_slice, x_idx, x_val)
-    return full_tensor, new_slice
+  full_tensor, last_slice = x_acc
+  new_slice = InPlaceSetSlice.apply(full_tensor, last_slice, x_idx, x_val)
+  return full_tensor, new_slice
+
 
 class DWAModules(torch.nn.Module):
-    def __init__(self, n_blocks, dilation=1, period=1):
-        super().__init__()
-        self.n_blocks = n_blocks
-        self.dilation = dilation
-        self.period = period
-        self.alphas = torch.nn.ModuleList([
-            torch.nn.Linear((i+1+dilation)//dilation, 1, bias=False) 
-            if (i+1) % period == 0 
-            else None 
-            for i in range(n_blocks)
-        ])
-        self.accumulators = None
-        self._init_weights()
 
-    def _init_weights(self):
-        for module in self.alphas:
-            if module is not None:
-                module.weight.data.zero_()
-                module.weight.data[0, -1] = 1.
+  def __init__(self, n_blocks, dilation=1, period=1):
+    super().__init__()
+    self.n_blocks = n_blocks
+    self.dilation = dilation
+    self.period = period
+    self.alphas = torch.nn.ModuleList([torch.nn.Linear((i+1+dilation)//dilation, 1, bias=False) if (i+1)%period == 0 else None for i in range(n_blocks)])
+    self.accumulators = None
+    self._init_weights()
 
-    def init_accumulators(self, x):
-        x_accs = []
-        for i in range(self.dilation):
-            current_group_size = (self.n_blocks + 1) // self.dilation
-            if i < (self.n_blocks + 1) % self.dilation:
-                current_group_size += 1
-            x_accs.append((
-                torch.zeros((current_group_size, *x.shape), 
-                device=x.device, 
-                dtype=x.dtype), 
-                None
-            ))
-        x_accs[0] = apply_inplace_set(x_accs[0], 0, x)
-        self.accumulators = x_accs
+  def _init_weights(self):
+    for module in self.alphas:
+      if module is not None:
+        module.weight.data.zero_()
+        module.weight.data[0, -1] = 1.
 
-    def forward(self, x, block_idx):
-        assert self.accumulators is not None, "'init_accumulators(x)' needs to be called first"
-        
-        # Update accumulator
-        self.accumulators[(block_idx+1) % self.dilation] = apply_inplace_set(
-            self.accumulators[(block_idx+1) % self.dilation],
-            (block_idx+1)//self.dilation,
-            x
-        )
-        
-        # Apply weights if needed
-        if (block_idx+1) % self.period == 0:
-            x = torch.tensordot(
-                self.alphas[block_idx].weight.view(-1), 
-                self.accumulators[(block_idx+1) % self.dilation][0],
-                dims=([0], [0])
-            )
-        
-        return x
+  def init_accumulators(self, x):
+    x_accs = []
+    for i in range(self.dilation):
+      current_group_size = (self.n_blocks + 1) // self.dilation
+      if i < (self.n_blocks + 1) % self.dilation:
+        current_group_size += 1
+      x_accs.append((torch.zeros((current_group_size, *x.shape), device=x.device, dtype=x.dtype), None))
+    x_accs[0] = apply_inplace_set(x_accs[0], 0, x)
+    self.accumulators = x_accs
+
+  def forward(self, x, block_idx):
+    assert self.accumulators is not None, "`init_accumulators(x)` needs to be called first"
+    self.accumulators[(block_idx+1) % self.dilation] = apply_inplace_set(
+        self.accumulators[(block_idx+1) % self.dilation], 
+        (block_idx+1)//self.dilation,
+        x  
+    )
+    if (block_idx+1) % self.period == 0:
+      x = torch.tensordot(self.alphas[block_idx].weight.view(-1), self.accumulators[(block_idx+1)%self.dilation][1], dims=1)
+    return x    
 
 # -----------------------------------------------------------------------------
 # The main GPT-2 model
@@ -381,14 +296,14 @@ class GPTConfig:
     n_layer : int = 12
     n_head : int = 6 # head dim 128 suggested by @Grad62304977
     n_embd : int = 768
-    expansion_rate : int = 4
+    dilation : int = 1
+    period : int = 1
     
 class GPT(nn.Module):
 
     def __init__(self, config):
         super().__init__()
 
-        self.expansion_rate = config.expansion_rate
         self.num_layers = config.n_layer
         
         self.transformer = nn.ModuleDict(dict(
@@ -612,7 +527,7 @@ optimizer1 = torch.optim.Adam([raw_model.transformer.wte.weight], lr=0.6,   beta
 optimizer2 = torch.optim.Adam([raw_model.lm_head.weight],         lr=0.008, betas=(0.8, 0.95), fused=True)
 params = list(raw_model.transformer.h.parameters())
 matrix_params = [p for p in params if p.ndim == 2]
-scalar_params = [p for p in params if p.ndim < 2] + [raw_model.skip_weights]
+scalar_params = [p for p in params if p.ndim < 2]
 optimizer3 = Muon(matrix_params, lr=0.05, momentum=0.95)
 optimizer4 = torch.optim.Adam(scalar_params, lr=0.04, betas=(0.8, 0.95), fused=True) # note that this learning rate is neither sensitive nor tuned
 optimizers = [optimizer1, optimizer2, optimizer3, optimizer4]
@@ -695,17 +610,15 @@ for step in range(args.num_iterations + 1):
     # --------------- TRAINING SECTION BEGIN -----------------
     model.train()
     for i in range(1, train_accumulation_steps+1):
-        # forward pass
-        loss = model(x, y, attn_blocksize=attn_blocksize)
+        ctx = model.no_sync() if i < train_accumulation_steps else contextlib.nullcontext()
+        with ctx: # there's no need to sync gradients every accumulation step
+            # forward pass
+            loss = model(x, y, attn_blocksize=attn_blocksize)
+            # advance the dataset for the next batch
+            x, y = train_loader.next_batch()
+            # backward pass
+            loss.backward()
         train_loss = loss.detach()
-        # advance the dataset for the next batch
-        x, y = train_loader.next_batch()
-        # backward pass
-        if i < train_accumulation_steps:
-            with model.no_sync(): # there's no need to sync gradients every accumulation step
-                loss.backward()
-        else:
-            loss.backward() # just sync on the last step
     for p in model.parameters():
         p.grad /= train_accumulation_steps
     # momentum warmup for Muon

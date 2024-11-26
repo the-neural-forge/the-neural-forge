@@ -5,12 +5,14 @@ set -e
 
 echo "Starting pipeline execution..."
 
-python -m venv .venv
+# Install uv and create virtual environment
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv .venv
 source .venv/bin/activate
 
 # 1. Install requirements
 echo "Installing requirements..."
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # 2. Run tests
 echo "Running tests..."
