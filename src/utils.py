@@ -134,7 +134,13 @@ def find_max_batch_size(model: nn.Module, optimizer: torch.optim.Optimizer, seq_
 
     return left  # Return largest successful batch size
 
-def measure_throughput(model: nn.Module, optimizer: torch.optim.Optimizer, seq_len: int, use_compile: bool = False, use_cuda_graphs: bool = False) -> float:
+def measure_throughput(
+    model: nn.Module, 
+    optimizer: torch.optim.Optimizer, 
+    seq_len: int, 
+    use_compile: bool = False, 
+) -> list[float]:
+    # Initialize DDP settings
     ddp = int(os.environ.get('RANK', -1)) != -1
     if ddp:
         init_process_group(backend='nccl')
@@ -143,27 +149,72 @@ def measure_throughput(model: nn.Module, optimizer: torch.optim.Optimizer, seq_l
         ddp_world_size = int(os.environ.get('WORLD_SIZE'))
         device = f"cuda:{ddp_local_rank}"
         torch.cuda.set_device(device)
-        master_process = ddp_rank == 0
     else:
-        ddp_rank = 0
-        ddp_local_rank = 0
+        ddp_rank = ddp_local_rank = 0
         ddp_world_size = 1
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        master_process = True
-
-    device_type = "cuda" if device.startswith("cuda") else "cpu"
-    print(f"Using device: {device}")
+    
+    master_process = ddp_rank == 0
+    
+    if master_process:
+        print(f"Using device: {device}")
+    
+    # Setup model
     torch.set_float32_matmul_precision('high')
-
-    model.train()
-    model.to(device)
-
+    model.train().to(device)
+    
     if use_compile:
         model = torch.compile(model, mode="max-autotune", dynamic=False, fullgraph=True)
+        
+    if ddp:
+        model = DDP(model, device_ids=[ddp_local_rank])
 
-    if 
+    # Measure throughput
+    max_minibatch_size = find_max_batch_size(model, optimizer, seq_len)
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    
+    throughputs = []
+    batch_size = 1
+    
+    while batch_size <= max_minibatch_size:
+        input_ids = torch.randint(0, 10000, (batch_size, seq_len), device=device)
+        target_ids = torch.randint(0, 10000, (batch_size, seq_len), device=device)
+        
+        # Warmup run
+        for _ in range(10):
+            _, loss = model(input_ids, target_ids)
+            loss.backward()
+            optimizer.zero_grad()
+        
+        # Timed run
+        start.record()
+        for _ in range(10):
+            optimizer.zero_grad()
+            _, loss = model(input_ids, target_ids)
+            loss.backward()
+            optimizer.step()
+        end.record()
+        
+        torch.cuda.synchronize()
+
+        throughput = batch_size / (end.elapsed_time(start) / 1000) * 10
+        throughputs.append(throughput * ddp_world_size if ddp else throughput)
+        
+        batch_size *= 2
+    
+    if ddp:
+        destroy_process_group()
+    
+    for throughput in throughputs:
+        print(f"Throughput: {throughput:.2f} tokens/s")
+    return throughputs
+
+
+
+
+
 
     
 
-
-
+    
