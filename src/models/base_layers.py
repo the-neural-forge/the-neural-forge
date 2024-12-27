@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 from typing import Literal
 
+
 class FeedForward(nn.Module):
     def __init__(self, d_model: int, activation: Literal['gelu', 'relu'], hidden_dim, **kwargs):
         super().__init__(**kwargs)
@@ -25,6 +26,7 @@ class FeedForward(nn.Module):
         x = self.out_layer(self.activation(x))
         return x
 
+
 class SwiGLUFeedForward(nn.Module):
     def __init__(self, d_model: int, hidden_dim: int, **kwargs):
         super().__init__(**kwargs)
@@ -42,6 +44,7 @@ class SwiGLUFeedForward(nn.Module):
         x_BSH = x_BS2H[0] * self.activation(x_BS2H[1])
         x_BSE = self.out_layer(x_BSH)
         return x_BSE
+
 
 class PositionalEncoding(nn.Module):
     def __init__(self, embed_dim: int, max_len: int = 5000, **kwargs):
@@ -63,7 +66,6 @@ class PositionalEncoding(nn.Module):
         return x_BSE + self.pe_1SE[:, :x_BSE.size(1)]
 
 
-
 class MultiHeadedAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, **kwargs):
         super().__init__(**kwargs)
@@ -83,7 +85,6 @@ class MultiHeadedAttention(nn.Module):
         qkv_BS3ND = qkv_BSE3.reshape(B, S, 3, self.num_heads, self.head_dim)
         qkv_3BHSD = qkv_BS3ND.permute(2, 0, 3, 1, 4)  # (3, B, num_heads, S, head_dim)
         query_BHSD, key_BHSD, value_BHSD = qkv_3BHSD[0], qkv_3BHSD[1], qkv_3BHSD[2]
-
 
         out_BHSD = F.scaled_dot_product_attention(query_BHSD, key_BHSD, value_BHSD, is_causal=True)
         out_BSE = out_BHSD.transpose(1, 2).contiguous().view(B, S, E)
@@ -108,13 +109,10 @@ class GroupedQueryAttention(nn.Module):
         self.qkv_projection = nn.Linear(d_model, qkv_dim, **kwargs)
         self.out_projection = nn.Linear(self.q_heads * self.head_dim, d_model, **kwargs)
 
-
     def _repeat_kv(self, key_BKSH: torch.Tensor, value_BKSH: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         key_BQSH = key_BKSH.repeat_interleave(self.q_heads // self.kv_heads, dim=1)
         value_BQSH = value_BKSH.repeat_interleave(self.q_heads // self.kv_heads, dim=1)
         return key_BQSH, value_BQSH
-
-
 
     def forward(self, x_BSE: torch.Tensor) -> torch.Tensor:
         B, S, _ = x_BSE.size()
@@ -133,7 +131,6 @@ class GroupedQueryAttention(nn.Module):
         attn_BSE = self.out_projection(attn_BSQH)
 
         return attn_BSE
-
 
 
 class Block(nn.Module):

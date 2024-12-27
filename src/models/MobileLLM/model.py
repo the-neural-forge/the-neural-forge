@@ -1,5 +1,5 @@
-from src.models.base_layers import SwiGLUFeedForward, GroupedQueryAttention
-from src.models.MobileLLM.config import MobileLLMConfig
+from models.base_layers import SwiGLUFeedForward, GroupedQueryAttention
+from models.MobileLLM.config import MobileLLMConfig
 from torch import nn
 import torch
 
@@ -18,7 +18,7 @@ class MobileLLMBlock(nn.Module):
         x_BSE = x_BSE + self.attention(self.layer_norm1(x_BSE))
         x_BSE = x_BSE + self.feed_forward(self.layer_norm2(x_BSE))
         return x_BSE
-    
+
 
 class MobileLLM(nn.Module):
     def __init__(self, config: MobileLLMConfig, **kwargs):
@@ -41,5 +41,3 @@ class MobileLLM(nn.Module):
         x_BSE = self.final_norm(x_BSE)
         x_BSE = self.lm_head(x_BSE)
         return x_BSE
-        
-
