@@ -3,6 +3,9 @@ __pycache__/
 .pytest_cache/
 .env
 .venv/
+src/data
+src/logs
+wandb/
 .vscode/
 myenv/
 .history/

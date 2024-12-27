@@ -1,39 +1,54 @@
-from typing import Optional, Tuple, Any
+from typing import Tuple
 import time
 import os
 import torch
 import tiktoken
-from src.models.gpt2.model import GPT2
-from src.models.gpt2.config import GPT2Config
-from src.utils import set_seed, get_lr
-from src.data.dataset import TextDataLoader
+from models.gpt2.model import GPT2
+from models.gpt2.config import GPT2Config
+from utils import set_seed, get_lr
+from data.dataset import TextDataLoader
 import torch.distributed as dist
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import wandb
 from dotenv import load_dotenv
 from knockknock import discord_sender
-from src.data.hellaswag import evaluate as evaluate_hellaswag
+from data.hellaswag import evaluate as evaluate_hellaswag
 from torch import Tensor
 import torch.nn as nn
+
+
 class TrainingConfig:
     def __init__(self):
-        self.total_batch_size = 524288
-        self.batch_size = 16
-        self.sequence_length = 1024
-        self.max_lr = 6e-4
-        self.min_lr = self.max_lr * 0.1
-        self.warmup_steps = 715
-        self.total_steps = 19073
+        self.total_batch_size = int(os.getenv('TOTAL_BATCH_SIZE', 524288))
+        self.batch_size = int(os.getenv('MICRO_BATCH_SIZE', 16))
+        self.sequence_length = int(os.getenv('SEQUENCE_LENGTH', 1024))
+        self.max_lr = float(os.getenv('LEARNING_RATE', 6e-4))
+        self.min_lr = float(os.getenv('MIN_LR', self.max_lr * 0.1))
+        self.warmup_steps = int(os.getenv('WARMUP_STEPS', 715))
+        self.total_steps = int(os.getenv('TOTAL_STEPS', 19073))
+        self.weight_decay = float(os.getenv('WEIGHT_DECAY', 0.1))
+        self.print_each = int(os.getenv('PRINT_EACH', 250))
+        self.print_last = os.getenv('PRINT_LAST', 'True') == 'True'
+        self.dataset = os.getenv('DATASET', 'data/edu_fineweb10B')
+        self.val_file = os.getenv('VAL_FILE', 'edufineweb_val.safetensors')
+        self.log_dir = os.getenv('LOG_DIR', 'logs')
+
 
 class GPTTrainer:
     def __init__(self, config: TrainingConfig, model: nn.Module, seed: int = 42, use_cuda_graphs: bool = False) -> None:
+        if os.name == 'nt':  # Windows dynamo fix
+            import torch._dynamo
+            torch._dynamo.config.suppress_errors = True
+
         self.config = config
         self.use_cuda_graphs = use_cuda_graphs
+        self.file_dir = os.path.dirname(os.path.abspath(__file__))
         self.setup_device(seed)
         self.setup_training_params()
         self.setup_model(model)
         self.setup_data()
+
         if self.master_process:
             self.setup_logging()
         if self.use_cuda_graphs and self.device_type == "cuda":
@@ -71,7 +86,7 @@ class GPTTrainer:
 
     def setup_training_params(self) -> None:
         self.grad_accumulation_steps = (
-            self.config.total_batch_size // 
+            self.config.total_batch_size //
             (self.config.batch_size * self.config.sequence_length * self.ddp_world_size)
         )
         print(f"Grad accumulation steps: {self.grad_accumulation_steps}, effective batch size: {self.config.total_batch_size}")
@@ -80,7 +95,8 @@ class GPTTrainer:
         self.model = model
         self.model.train()
         self.model.to(self.device)
-        self.model = torch.compile(self.model, mode="max-autotune", dynamic=False, fullgraph=True)
+        # self.model = torch.compile(self.model, mode="max-autotune", dynamic=False, fullgraph=True)
+        self.model = torch.compile(self.model)
 
         if self.ddp:
             self.model = DDP(self.model, device_ids=[self.ddp_local_rank], static_graph=True)
@@ -90,23 +106,23 @@ class GPTTrainer:
 
         self.tokenizer = tiktoken.get_encoding('gpt2')
         self.optimizer = self.raw_model.configure_optimizers(
-            0.1, self.config.max_lr, self.device, self.master_process
+            self.config.weight_decay, self.config.max_lr, self.device, self.master_process
         )
 
     def setup_cuda_graphs(self) -> None:
         # Warmup before capturing CUDA graph
-        self.static_x = torch.zeros((self.config.batch_size, self.config.sequence_length), 
-                                  dtype=torch.long, device=self.device)
-        self.static_y = torch.zeros((self.config.batch_size, self.config.sequence_length), 
-                                  dtype=torch.long, device=self.device)
-        
+        self.static_x = torch.zeros((self.config.batch_size, self.config.sequence_length),
+                                    dtype=torch.long, device=self.device)
+        self.static_y = torch.zeros((self.config.batch_size, self.config.sequence_length),
+                                    dtype=torch.long, device=self.device)
+
         # Do a few warmup iterations
         for _ in range(3):
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 _, loss = self.model(self.static_x, self.static_y)
                 loss = loss / self.grad_accumulation_steps
             loss.backward()
-        
+
         # Capture graph
         self.graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(self.graph):
@@ -122,31 +138,33 @@ class GPTTrainer:
                 _, self.static_val_loss = self.model(self.static_x, self.static_y)
 
     def setup_data(self) -> None:
+        data_dir = f"{self.file_dir}/{self.config.dataset}"
         self.data_loader = TextDataLoader(
-            self.config.batch_size, 
+            self.config.batch_size,
             self.config.sequence_length,
-            "edu_fineweb10B",
+            data_dir,
             process_rank=self.ddp_rank,
             num_processes=self.ddp_world_size
         )
         self.val_loader = TextDataLoader(
             self.config.batch_size,
             self.config.sequence_length,
-            single_file='edufineweb_val.safetensors',
+            single_file=f'{data_dir}/{self.config.val_file}',
             process_rank=self.ddp_rank,
             num_processes=self.ddp_world_size
         )
 
     def setup_logging(self) -> None:
+        logdir = self.config.log_dir
         load_dotenv()
         wandb.login()
-        os.makedirs('logs', exist_ok=True)
+        os.makedirs(logdir, exist_ok=True)
         timestamp = time.strftime('%Y%m%d_%H%M%S')
-        self.log_file = f'logs/training_log_{timestamp}.txt'
-        
+        self.log_file = f'{logdir}/training_log_{timestamp}.txt'
+
         with open(self.log_file, 'w') as f:
             f.write('step,train_loss,val_loss,learning_rate,grad_norm,time\n')
-        
+
         wandb.init(
             project="gpt2-training",
             config=self.config.__dict__
@@ -165,9 +183,9 @@ class GPTTrainer:
 
         # Optimize
         norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-        lr = get_lr(self.config.warmup_steps, self.config.total_steps, 
-                   self.config.max_lr, self.config.min_lr, step)
-        
+        lr = get_lr(self.config.warmup_steps, self.config.total_steps,
+                    self.config.max_lr, self.config.min_lr, step)
+
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
         self.optimizer.step()
@@ -177,12 +195,12 @@ class GPTTrainer:
     def _process_batch(self, mini_step: int) -> Tensor:
         x, y = self.data_loader.get_item()
         x, y = x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
-        
+
         if self.ddp:
             self.model.require_backward_grad_sync = (
                 mini_step == self.grad_accumulation_steps - 1
             )
-        
+
         if self.use_cuda_graphs and self.device_type == "cuda":
             # Update static buffers and replay graph
             self.static_x.copy_(x)
@@ -192,7 +210,7 @@ class GPTTrainer:
         else:
             with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                 outputs, loss = self.model(x, y)
-            
+
             loss = loss / self.grad_accumulation_steps
             loss.backward()
             return loss.detach()
@@ -208,7 +226,7 @@ class GPTTrainer:
             for _ in range(val_loss_steps):
                 x, y = self.val_loader.get_single_file_item()
                 x, y = x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
-                
+
                 if self.use_cuda_graphs and self.device_type == "cuda":
                     self.static_x.copy_(x)
                     self.static_y.copy_(y)
@@ -229,11 +247,11 @@ class GPTTrainer:
         try:
             for step in range(self.config.total_steps):
                 loss_accum, lr, norm, dt = self.train_step(step)
-                
-                if step % 250 == 0:
+
+                if step % config.print_each == 0:
                     self._handle_validation_step(step, loss_accum, lr, norm, dt)
 
-            if self.master_process:
+            if self.config.print_last and self.master_process:
                 wandb.finish()
                 self._send_discord_notification('Training finished')
 
@@ -241,14 +259,14 @@ class GPTTrainer:
             if self.ddp:
                 destroy_process_group()
 
-    def _handle_validation_step(self, step: int, loss_accum: Tensor, lr: float, 
-                              norm: Tensor, dt: float) -> None:
+    def _handle_validation_step(self, step: int, loss_accum: Tensor, lr: float,
+                                norm: Tensor, dt: float) -> None:
         val_loss = self.validate()
         last_step = (step == self.config.total_steps - 1)
-        
+
         if self.master_process:
             self._log_metrics(step, loss_accum, lr, norm, dt, val_loss)
-            
+
             if (step % 1000 == 0 or last_step) and step != 0:
                 hellaswag_acc = evaluate_hellaswag(self.raw_model, self.device)
                 self._log_hellaswag(step, hellaswag_acc)
@@ -257,10 +275,10 @@ class GPTTrainer:
     def _send_discord_notification(self, message: str) -> str:
         return message
 
-    def _log_metrics(self, step: int, loss_accum: Tensor, lr: float, 
-                    norm: Tensor, dt: float, val_loss: Tensor) -> None:
-        tok_sec = (self.config.batch_size * self.config.sequence_length * 
-                  self.grad_accumulation_steps * self.ddp_world_size) / dt
+    def _log_metrics(self, step: int, loss_accum: Tensor, lr: float,
+                     norm: Tensor, dt: float, val_loss: Tensor) -> None:
+        tok_sec = (self.config.batch_size * self.config.sequence_length *
+                   self.grad_accumulation_steps * self.ddp_world_size) / dt
 
         print(f'Step {step} | loss: {loss_accum.item():.6f} | val_loss: {val_loss.item():.4f} | '
               f'lr: {lr:.5f} | norm: {norm:.4f} | time: {dt*1000:.2f}ms | '
@@ -268,7 +286,7 @@ class GPTTrainer:
 
         with open(self.log_file, "a") as f:
             f.write(f"{step},{loss_accum.item():.4f},{val_loss.item():.4f},"
-                   f"{lr:.5f},{norm:.4f},{dt*1000:.2f}\n")
+                    f"{lr:.5f},{norm:.4f},{dt*1000:.2f}\n")
 
         wandb.log({
             "train/loss": loss_accum.item(),
@@ -285,6 +303,7 @@ class GPTTrainer:
             f.write(f"{step} hellaswag {accuracy:.4f}\n")
         wandb.log({"eval/hellaswag_accuracy": accuracy}, step=step)
 # Configuration class
+
 
 # Usage
 if __name__ == "__main__":

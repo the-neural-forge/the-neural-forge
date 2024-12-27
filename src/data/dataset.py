@@ -79,7 +79,7 @@ class TextDataLoader:
             raise FileNotFoundError(f"Could not find file: {file_path}")
         except Exception as e:
             raise RuntimeError(f"Error loading file {file_path}: {str(e)}")
-        
+
     def _load_shard(self):
         """Load next shard in sharded mode"""
 
@@ -136,7 +136,7 @@ class TextDataLoader:
 
         self.batch_idx += 1
         return inputs.pin_memory(), targets.pin_memory()
-    
+
     def reset(self):
         if self.single_file_mode:
             self.batch_idx = 0
@@ -149,5 +149,3 @@ class TextDataLoader:
             return self.batches_total // self.num_processes
         else:
             return self.num_shards * self.batches_per_shard // self.num_processes
-
-

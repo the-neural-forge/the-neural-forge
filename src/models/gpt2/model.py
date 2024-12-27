@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.models.base_layers import Block
-from src.models.gpt2.config import GPT2Config
-from src.utils import make_copies, transform_keys
+from models.base_layers import Block
+from models.gpt2.config import GPT2Config
+from utils import make_copies, transform_keys
 
 
 """
@@ -19,11 +19,13 @@ V: vocabulary size
 F: feed-forward hidden dimension
 """
 
+
 class GPT2Block(Block):
     def __init__(self, config, **kwargs):
         super().__init__(config, **kwargs)
         self.attention.out_projection.NANOGPT_SCALE_INIT = 1
         self.mlp.out_layer.NANOGPT_SCALE_INIT = 1
+
 
 class GPT2(nn.Module):
     def __init__(self, config: GPT2Config, **kwargs):
@@ -51,7 +53,6 @@ class GPT2(nn.Module):
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-
 
     @classmethod
     def from_pretrained(cls, model_name: str) -> 'GPT2':
@@ -84,7 +85,6 @@ class GPT2(nn.Module):
         gpt2.load_state_dict(hf_state_dict, strict=True)
 
         return gpt2
-
 
     def forward(self, idx_BS: torch.Tensor, targets_BS: torch.Tensor = None):
         """
