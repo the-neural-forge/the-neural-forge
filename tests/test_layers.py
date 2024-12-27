@@ -1,7 +1,8 @@
 import torch
 
 from src.models.gpt2.config import GPT2Config
-from src.models.gpt2.model import PositionalEncoding, MLP, MultiHeadedAttention, Block, GPT2
+from src.models.base_layers import PositionalEncoding, MultiHeadedAttention, Block, FeedForward
+from src.models.gpt2.model import GPT2
 
 
 def test_positional_encoding():
@@ -24,7 +25,7 @@ def test_mlp():
     activation = 'gelu'
 
     x = torch.randn((sequence_length, batch_size, embedding_dim))
-    mlp = MLP(embedding_dim, activation, hidden_dim)
+    mlp = FeedForward(embedding_dim, activation, hidden_dim)
     y = mlp(x)
 
     assert x.size() == y.size()
@@ -71,7 +72,3 @@ def test_gpt():
     assert y.size(0) == x.size(0)
     assert y.size(1) == x.size(1)
     assert y.size(2) == model.config.vocab_size
-
-
-
-

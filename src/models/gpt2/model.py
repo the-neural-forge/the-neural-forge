@@ -8,7 +8,7 @@ from src.models.gpt2.config import GPT2Config
 from src.utils import make_copies, transform_keys
 
 
-""" 
+"""
 Shape convention:
 B: batch size
 S: sequence length
@@ -22,7 +22,7 @@ F: feed-forward hidden dimension
 class GPT2Block(Block):
     def __init__(self, config, **kwargs):
         super().__init__(config, **kwargs)
-        self.attention.out_layer.NANOGPT_SCALE_INIT = 1
+        self.attention.out_projection.NANOGPT_SCALE_INIT = 1
         self.mlp.out_layer.NANOGPT_SCALE_INIT = 1
 
 class GPT2(nn.Module):
@@ -94,7 +94,7 @@ class GPT2(nn.Module):
         """
         B, S = idx_BS.size()
         pos_S = torch.arange(0, S, device=idx_BS.device, dtype=torch.long)
-        
+
         x_BSE = self.model.pos_embedding(pos_S) + self.model.tok_embedding(idx_BS)
         for block in self.model.blocks:
             x_BSE = block(x_BSE)

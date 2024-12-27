@@ -24,7 +24,7 @@ class FeedForward(nn.Module):
         x = self.in_layer(x)
         x = self.out_layer(self.activation(x))
         return x
-    
+
 class SwiGLUFeedForward(nn.Module):
     def __init__(self, d_model: int, hidden_dim: int, **kwargs):
         super().__init__(**kwargs)
@@ -42,7 +42,7 @@ class SwiGLUFeedForward(nn.Module):
         x_BSH = x_BS2H[0] * self.activation(x_BS2H[1])
         x_BSE = self.out_layer(x_BSH)
         return x_BSE
-    
+
 class PositionalEncoding(nn.Module):
     def __init__(self, embed_dim: int, max_len: int = 5000, **kwargs):
         super().__init__(**kwargs)
@@ -90,7 +90,7 @@ class MultiHeadedAttention(nn.Module):
         out_BSE = self.out_projection(out_BSE)
 
         return out_BSE
-    
+
 
 class GroupedQueryAttention(nn.Module):
     def __init__(self, d_model: int, q_heads: int, kv_heads: int, head_dim: int, **kwargs):
@@ -127,7 +127,7 @@ class GroupedQueryAttention(nn.Module):
         value_BKSH = value_BSK.view(B, S, self.kv_heads, self.head_dim).transpose(1, 2)
 
         key_BQSH, value_BQSH = self._repeat_kv(key_BKSH, value_BKSH)
-        
+
         attn_BQSH = F.scaled_dot_product_attention(query_BQSH, key_BQSH, value_BQSH, is_causal=True)
         attn_BSQH = attn_BQSH.transpose(1, 2).contiguous().view(B, S, self.q_heads * self.head_dim)
         attn_BSE = self.out_projection(attn_BSQH)
@@ -157,4 +157,4 @@ class Block(nn.Module):
         """
         x_BSE = x_BSE + self.attention(self.layer_norm1(x_BSE))
         x_BSE = x_BSE + self.mlp(self.layer_norm2(x_BSE))
-        return x_BSE    
+        return x_BSE
