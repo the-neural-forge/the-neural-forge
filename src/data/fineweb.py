@@ -1,4 +1,7 @@
 """
+This code is adapted from Andrej Karpathy's nanoGPT repository:
+https://github.com/karpathy/build-nanogpt
+
 FineWeb-Edu dataset (for srs pretraining)
 https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
 Downloads and tokenizes the data and saves data shards to disk.
