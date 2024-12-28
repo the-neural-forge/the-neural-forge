@@ -9,12 +9,13 @@ Will save shards to the local directory "edu_fineweb10B".
 
 import os
 import multiprocessing as mp
+
 import numpy as np
-import tiktoken
-from datasets import load_dataset # pip install datasets
-from tqdm import tqdm # pip install tqdm
 import safetensors.torch as safetorch
+import tiktoken
 import torch
+from datasets import load_dataset
+from tqdm import tqdm
 
 # ------------------------------------------
 local_dir = "edu_fineweb10B"

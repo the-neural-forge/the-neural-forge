@@ -25,20 +25,22 @@ gpt2-xl (1558M)
 The validation set of HellaSwag has a total of 10,042 examples.
 """
 
-import os
 import json
+import os
+from typing import Generator, Tuple
+
 import requests
 import tiktoken
-from tqdm import tqdm
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
+import torch.nn.functional as F
+from tqdm import tqdm
 from transformers import GPT2LMHeadModel
 
 # -----------------------------------------------------------------------------
 DATA_CACHE_DIR = os.path.join(os.path.dirname(__file__), "hellaswag")
 
-def download_file(url: str, fname: str, chunk_size=1024):
+def download_file(url: str, fname: str, chunk_size: int = 1024) -> None:
     """Helper function to download a file from a given url"""
     resp = requests.get(url, stream=True)
     total = int(resp.headers.get("content-length", 0))
@@ -61,7 +63,7 @@ hellaswags = {
 
 enc = tiktoken.get_encoding("gpt2")
 
-def download(split):
+def download(split: str) -> None:
     """Downloads HellaSwag DATA_CACHE_DIR"""
     os.makedirs(DATA_CACHE_DIR, exist_ok=True)
     data_url = hellaswags[split]
@@ -70,7 +72,7 @@ def download(split):
         print(f"Downloading {data_url} to {data_filename}...")
         download_file(data_url, data_filename)
 
-def render_example(example, max_len=1024):
+def render_example(example: dict, max_len: int = 1024) -> Tuple[dict, torch.Tensor, torch.Tensor, int]:
     """
     Given the example as a dictionary, render it as three torch tensors:
     - tokens (the tokens of context + completion, of size 4xN, as there are always 4 candidates)
@@ -108,7 +110,7 @@ def render_example(example, max_len=1024):
 
     return data, tokens, mask, label
 
-def iterate_examples(split):
+def iterate_examples(split: str) -> Generator[dict, None, None]:
     # there are 10,042 examples in total in val
     download(split)
     with open(os.path.join(DATA_CACHE_DIR, f"hellaswag_{split}.jsonl"), "r") as f:
@@ -117,7 +119,7 @@ def iterate_examples(split):
             yield example
 
 @torch.no_grad()
-def evaluate(model, device):
+def evaluate(model: nn.Module, device: str) -> float:
     """
     Evaluates a GPT model on HellaSwag validation set
     Returns: accuracy (float between 0 and 1)

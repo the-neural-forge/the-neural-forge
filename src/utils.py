@@ -1,21 +1,20 @@
+import os
 import math
 import random
-from typing import List, Dict
 from copy import deepcopy
-import os
 
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 
-def make_copies(module: nn.Module, num_copies: int) -> List[nn.Module]:
+def make_copies(module: nn.Module, num_copies: int) -> list[nn.Module]:
     return [deepcopy(module) for _ in range(num_copies)]
 
 
-def transform_key(key):
+def transform_key(key: str) -> str:
     name_map = {
         'wte': 'tok_embedding',
         'wpe': 'pos_embedding',
@@ -38,11 +37,11 @@ def transform_key(key):
         new_key = new_key.replace(f'.{old}.', f'.{new}.')
 
     return new_key
-def transform_keys(d: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+def transform_keys(d: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
     return {transform_key(k): v for k, v in d.items()}
 
 
-def configure_optimizers(model, weight_decay, learning_rate, device_type):
+def configure_optimizers(model: nn.Module, weight_decay: float, learning_rate: float, device_type: str) -> torch.optim.Optimizer:
     # start with all of the candidate parameters (that require grad)
     param_dict = {pn: p for pn, p in model.named_parameters()}
     param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
@@ -60,7 +59,7 @@ def configure_optimizers(model, weight_decay, learning_rate, device_type):
     optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=True)
     return optimizer
 
-def get_lr(warmup_steps, total_steps, max_lr, min_lr, actual_step):
+def get_lr(warmup_steps: int, total_steps: int, max_lr: float, min_lr: float, actual_step: int) -> float:
     if actual_step < warmup_steps:
         # Linear warmup from min_lr to max_lr
         return min_lr + (max_lr - min_lr) * (actual_step / warmup_steps)
@@ -71,7 +70,7 @@ def get_lr(warmup_steps, total_steps, max_lr, min_lr, actual_step):
         decay_ratio = (actual_step - warmup_steps) / (total_steps - warmup_steps)
         return min_lr + 0.5 * (max_lr-min_lr) * (1 + math.cos(decay_ratio * math.pi))
 
-def set_seed(seed: int = 42):
+def set_seed(seed: int = 42) -> None:
     random.seed(seed)
     np.random.seed(seed)
 
@@ -214,7 +213,3 @@ def measure_throughput(
 
 
 
-
-    
-
-    

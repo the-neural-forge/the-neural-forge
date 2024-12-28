@@ -1,21 +1,23 @@
-from typing import Tuple
-import time
 import os
+import time
+from typing import Tuple
+
 import torch
-import tiktoken
-from models.gpt2.model import GPT2
-from models.gpt2.config import GPT2Config
-from utils import set_seed, get_lr
-from data.dataset import TextDataLoader
 import torch.distributed as dist
-from torch.distributed import init_process_group, destroy_process_group
-from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.nn as nn
 import wandb
 from dotenv import load_dotenv
 from knockknock import discord_sender
-from data.hellaswag import evaluate as evaluate_hellaswag
 from torch import Tensor
-import torch.nn as nn
+from torch.distributed import destroy_process_group, init_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+import tiktoken
+from data.dataset import TextDataLoader
+from data.hellaswag import evaluate as evaluate_hellaswag
+from models.gpt2.config import GPT2Config
+from models.gpt2.model import GPT2
+from utils import get_lr, set_seed
 
 
 class TrainingConfig:
@@ -118,7 +120,7 @@ class GPTTrainer:
 
         # Do a few warmup iterations
         for _ in range(3):
-            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            with torch.amp.autocast(device_type=self.device, dtype=torch.bfloat16):
                 _, loss = self.model(self.static_x, self.static_y)
                 loss = loss / self.grad_accumulation_steps
             loss.backward()
@@ -126,7 +128,7 @@ class GPTTrainer:
         # Capture graph
         self.graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(self.graph):
-            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            with torch.amp.autocast(device_type=self.device, dtype=torch.bfloat16):
                 self.static_output, self.static_loss = self.model(self.static_x, self.static_y)
                 self.static_loss = self.static_loss / self.grad_accumulation_steps
             self.static_loss.backward()
@@ -134,7 +136,7 @@ class GPTTrainer:
         # Additional validation graph setup
         self.val_graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(self.val_graph):
-            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            with torch.amp.autocast(device_type=self.device, dtype=torch.bfloat16):
                 _, self.static_val_loss = self.model(self.static_x, self.static_y)
 
     def setup_data(self) -> None:
@@ -208,7 +210,7 @@ class GPTTrainer:
             self.graph.replay()
             return self.static_loss.detach()
         else:
-            with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
+            with torch.amp.autocast(device_type=self.device, dtype=torch.bfloat16):
                 outputs, loss = self.model(x, y)
 
             loss = loss / self.grad_accumulation_steps

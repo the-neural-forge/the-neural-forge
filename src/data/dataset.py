@@ -1,9 +1,9 @@
+import os
+
+import numpy as np
+import safetensors.torch as safetorch
 import tiktoken
 import torch
-import safetensors.torch as safetorch
-import os
-import numpy as np
-
 
 def _load_tokens(filename: str) -> torch.Tensor:
     return safetorch.load_file(filename)['tokens']
