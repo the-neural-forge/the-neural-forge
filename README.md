@@ -1,46 +1,43 @@
 # The Neural Forge
+[![Weights and Biases](https://raw.githubusercontent.com/wandb/assets/main/wandb-github-badge-gradient.svg)](WANDB_PROJECT_LINK)
 
-## Getting Started
-- todo
+## What you can do with Neural Forge
+Train and evaluate language models reproducibly at an accessible cost (~$20/experiment):
+- Run baseline GPT-2 experiments with standardized evaluation
+- Track and compare your results using Weights & Biases
+- Validate your innovations against community benchmarks
+
+## Quick Start
+TODO
 
 ## Overview
-
-The Neural Forge is a community-driven project for validating and reproducing language model research. By providing a standardized evaluation environment, we enable researchers and engineers to test their ideas against a GPT-2 baseline at an accessible cost (~$20 per experiment).
+The Neural Forge is a community-driven framework for reproducible language model research. We provide:
+- A standardized evaluation environment
+- Fixed dataset and model size constraints
+- Automated experiment tracking
+- Clear baseline benchmarks
 
 ## Core Principles
-
-- **Reproducibility**: All experiments are tracked in Weights & Biases for transparency
-- **Accessibility**: Cloud GPU training costs around $20 per experiment
-- **Simplicity**: Two main constraints:
+- **Reproducibility**: All experiments are tracked in Weights & Biases
+- **Accessibility**: Cloud GPU training costs ~$20 per experiment
+- **Simplicity**: Two key constraints:
   - Maximum 124M parameters active per token
   - Single pass through FineWeb EDU 10B tokens dataset
 
 ## Dataset
-
-We use a fixed 10B token subset of FineWeb EDU, a high-quality educational content dataset created by Hugging Face.
-
-Dataset statistics:
-- Vocabulary size: [TODO: Add vocab size]
-- Average sequence length: [TODO: Add avg seq length]
-- Domain distribution: [TODO: Add domain distribution]
-- Dataset hash: [TODO: Add SHA-256 hash]
-
-Download link: [TODO: Add download link]
+We use FineWeb EDU, a curated 10B token dataset of high-quality educational content created by Hugging Face.
+Dataset into:
+- TODO
+Download: [TODO: Add download link]
 Paper: [TODO: Add paper link]
 
-## Hardware Requirements
-
-- Minimum GPU memory: 8GB
-- Supported configurations: 1-8 GPUs
-- Gradient accumulation supported for different hardware setups
-
-Example configurations:
-- Single NVIDIA RTX 4090 (24GB)
-- Single NVIDIA A100 (40GB/80GB)
-- Multi-GPU setups (H100, A100, etc.)
+Notes:
+- Gradient accumulation is supported for limited memory setups
+- Multi-GPU training uses PyTorch DDP
+- Code for automatic micro batch size optimization is in utils.py [TODO: Implement optimal batch size finder]
+- Training speed comparisons use throughput/FLOP metric [TODO: Implement throughput/FLOP measurement]
 
 ## Hyperparameter Sweeps
-
 To ensure fair comparison and prevent excessive optimization:
 - Maximum 20 sweep runs allowed per submission
 - Each sweep run limited to 500M tokens
@@ -48,16 +45,13 @@ To ensure fair comparison and prevent excessive optimization:
 - Final evaluation must use the complete 10B token dataset
 
 ## Evaluation
-
 Models are evaluated on:
 - HellaSwag (commonsense reasoning)
 - [TODO: Additional benchmarks under consideration]
 
 ## Results
-
 ### Performance Overview
-
-| Model | Date | Hardware Config | Training Time | HSwag | Description |
+| Model | Date | Tokens/FLOP | Training Time | HSwag | Description |
 |-------|------|-----------------|---------------|-------|-------------|
 | Baseline GPT-2 | [TODO] | [TODO] | [TODO] | [TODO] ± [TODO] | Original implementation |
 | ... | ... | ... | ... | ... | ... |
@@ -65,11 +59,9 @@ Models are evaluated on:
 Note: Results reported as mean ± std based on multiple runs (TODO: implement confidence intervals)
 
 ### Performance Charts
-
 [Placeholder for W&B performance comparison charts]
 
 ## Contributing
-
 1. Fork the repository and implement your changes
 2. Perform hyperparameter sweeps (optional, see constraints above)
 3. Train on full FineWeb EDU 10B tokens
@@ -80,7 +72,6 @@ Note: Results reported as mean ± std based on multiple runs (TODO: implement co
    - Evaluation results
 
 ## Citation
-
 ```bibtex
 @misc{neuralforge2024,
   title={The Neural Forge: A Framework for Reproducible Language Model Research},
@@ -90,3 +81,4 @@ Note: Results reported as mean ± std based on multiple runs (TODO: implement co
   journal={GitHub repository},
   howpublished={\url{https://github.com/[TODO: repository]}},
 }
+```
