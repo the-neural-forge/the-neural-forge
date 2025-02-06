@@ -82,9 +82,7 @@ class MultiHeadedAttention(nn.Module):
 
         # todo check speeds with torch.compile
         qkv_BSE3 = self.qkv_projection(x_BSE)
-        qkv_BS3ND = qkv_BSE3.reshape(B, S, 3, self.num_heads, self.head_dim)
-        qkv_3BHSD = qkv_BS3ND.permute(2, 0, 3, 1, 4)  # (3, B, num_heads, S, head_dim)
-        query_BHSD, key_BHSD, value_BHSD = qkv_3BHSD[0], qkv_3BHSD[1], qkv_3BHSD[2]
+        query_BHSD, key_BHSD, value_BHSD = qkv_BSE3.view(B, S, 3, self.num_heads, self.head_dim).unbind(dim=2)
 
         out_BHSD = F.scaled_dot_product_attention(query_BHSD, key_BHSD, value_BHSD, is_causal=True)
         out_BSE = out_BHSD.transpose(1, 2).contiguous().view(B, S, E)
